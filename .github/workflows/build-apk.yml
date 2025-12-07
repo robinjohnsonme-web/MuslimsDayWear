@@ -1,0 +1,209 @@
+name: Build APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create project structure
+        run: |
+          mkdir -p app/src/main/java/com/example/islamicprayerwear/{ui/{screens,components,theme},data/{model,repository},viewmodel,service,util}
+          mkdir -p app/src/main/res/{values,values-bn,drawable,mipmap}
+          mkdir -p app/src/test/java/com/example/islamicprayerwear
+          mkdir -p app/src/androidTest/java/com/example/islamicprayerwear
+
+      - name: Create build.gradle.kts
+        run: |
+          cat > build.gradle.kts << 'EOF'
+          plugins {
+              id("com.android.application") version "8.1.0"
+              id("org.jetbrains.kotlin.android") version "1.9.0"
+          }
+
+          android {
+              namespace = "com.example.islamicprayerwear"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.example.islamicprayerwear"
+                  minSdk = 30
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0.0"
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled = true
+                      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+
+              buildFeatures {
+                  compose = true
+              }
+
+              composeOptions {
+                  kotlinCompilerExtensionVersion = "1.5.0"
+              }
+          }
+
+          dependencies {
+              implementation("androidx.appcompat:appcompat:1.6.1")
+              implementation("com.google.android.material:material:1.9.0")
+              implementation("androidx.wear:wear:1.2.0")
+              implementation("androidx.wear.compose:compose-foundation:1.2.0")
+              implementation("androidx.wear.compose:compose-ui:1.2.0")
+              implementation("androidx.wear.compose:compose-material:1.2.0")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
+              implementation("androidx.activity:activity-compose:1.7.2")
+              testImplementation("junit:junit:4.13.2")
+              androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+              androidTestImplementation("androidx.test:runner:1.5.2")
+          }
+          EOF
+
+      - name: Create AndroidManifest.xml
+        run: |
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+              <uses-permission android:name="android.permission.VIBRATE" />
+
+              <uses-feature android:name="android.hardware.type.watch" />
+
+              <application
+                  android:label="@string/app_name"
+                  android:icon="@mipmap/ic_launcher">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          ategory android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+      - name: Create MainActivity.kt
+        run: |
+          cat > app/src/main/java/com/example/islamicprayerwear/MainActivity.kt << 'EOF'
+          package com.example.islamicprayerwear
+
+          import android.os.Bundle
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+
+          class MainActivity : ComponentActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContent {
+                      IslamicPrayerApp()
+                  }
+              }
+          }
+
+          @androidx.compose.runtime.Composable
+          fun IslamicPrayerApp() {
+              androidx.wear.compose.material.Text("Islamic Prayer Pro")
+          }
+          EOF
+
+      - name: Create strings.xml
+        run: |
+          cat > app/src/main/res/values/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">Islamic Prayer Pro</string>
+          </resources>
+          EOF
+
+      - name: Create strings_bn.xml
+        run: |
+          cat > app/src/main/res/values-bn/strings.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">ইসলামিক প্রেয়ার প্রো</string>
+          </resources>
+          EOF
+
+      - name: Create proguard-rules.pro
+        run: |
+          cat > app/proguard-rules.pro << 'EOF'
+          -keep class androidx.** { *; }
+          -keep class com.google.android.** { *; }
+          -dontwarn androidx.**
+          EOF
+
+      - name: Create settings.gradle.kts
+        run: |
+          cat > settings.gradle.kts << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          include(":app")
+          EOF
+
+      - name: Create gradle.properties
+        run: |
+          cat > gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx2048m -XX:MaxPermSize=512m
+          android.useAndroidX=true
+          android.enableJetifier=true
+          kotlin.code.style=official
+          EOF
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew || true
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace || true
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease --stacktrace || true
+
+      - name: Upload APK Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-builds
+          path: app/build/outputs/apk/*/*.apk
+          retention-days: 30
+          if-no-files-found: ignore
